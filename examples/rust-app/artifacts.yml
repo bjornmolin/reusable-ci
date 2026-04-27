@@ -11,6 +11,12 @@ artifacts:
       rust-toolchain: stable
       # Optional. Forwarded as the `apt-packages` builder input for native deps.
       # apt-packages: "libssl-dev pkg-config"
+      # Optional. Override default `--workspace --locked` for build/test invocations.
+      # cargo-args: "--workspace --locked --all-features"
+      # test-args: "--workspace --locked"
+      # Optional. Skip `cargo test` in the release builder (e.g. when tests
+      # run in a separate workspace-level workflow with extra features).
+      # skip-tests: true
 containers:
   - name: my-rust-app
     from: [my-rust-app]

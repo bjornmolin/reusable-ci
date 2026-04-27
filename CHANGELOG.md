@@ -36,6 +36,13 @@ contract end-to-end).
   `linters.clippy`, `linters.rustfmt`, `linters.cargoaudit` (all default
   false). `write-pr-interface.sh` emits an umbrella `rust` policy bool
   that gates the rust-lint dispatch in `pullrequest-quality-stage.yml`.
+  A new top-level string input `rust.apt-packages` is forwarded to
+  `lint-rust.yml`'s `apt-packages` job input so clippy can compile crates
+  with native deps.
+- `release-build-stage.yml`'s `build-rust` matrix now forwards
+  `apt-packages`, `cargo-args`, `test-args`, and `skip-tests` from each
+  artefact's `config:` block to `build-rust.yml`. Without this, those
+  builder inputs were unreachable from the orchestrator path.
 - `examples/rust-app/` — full configuration example mirroring the npm
   / maven examples.
 - `scripts/summary/write-rust-build-summary.sh` — per-artefact build

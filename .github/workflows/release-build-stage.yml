@@ -163,6 +163,10 @@ jobs:
       working-directory: ${{ matrix.artifact['working-directory'] }}
       branch: ${{ inputs.branch }}
       rust-toolchain: ${{ matrix.artifact.config['rust-toolchain'] || 'stable' }}
+      apt-packages: ${{ matrix.artifact.config['apt-packages'] || '' }}
+      cargo-args: ${{ matrix.artifact.config['cargo-args'] || '--workspace --locked' }}
+      test-args: ${{ matrix.artifact.config['test-args'] || '--workspace --locked' }}
+      skip-tests: ${{ matrix.artifact.config['skip-tests'] == true }}
       enable-build-sbom: ${{ contains(matrix.artifact['effective-sboms'], 'build') }}
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
   summarize-build-stage:

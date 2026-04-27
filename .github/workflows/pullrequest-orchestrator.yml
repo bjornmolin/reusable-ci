@@ -111,6 +111,11 @@ on:
         required: false
         default: false
         type: boolean
+      rust.apt-packages:
+        description: "Space-separated apt packages required to build/lint Rust crates (e.g. native deps for clippy)."
+        required: false
+        default: ""
+        type: string
       security.sast-opengrep:
         description: "Enable OpenGrep SAST scanning"
         required: false
@@ -184,6 +189,7 @@ jobs:
     with:
       pr-context-json: ${{ needs.compose-pr-interface.outputs.pr-context-json }}
       pr-policy-json: ${{ needs.compose-pr-interface.outputs.pr-policy-json }}
+      rust-apt-packages: ${{ inputs['rust.apt-packages'] }}
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
 
   # ===== Summary =====

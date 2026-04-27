@@ -36,6 +36,9 @@ jobs:
       linters.clippy: true
       linters.rustfmt: true
       linters.cargoaudit: true
+      # Native build deps required by clippy (and any other Rust step that
+      # compiles). Forwarded to lint-rust.yml's `apt-packages` input.
+      # rust.apt-packages: "libssl-dev pkg-config"
       # OpenGrep SAST is enabled by default. Opt out if needed:
       # security.sast-opengrep: false
 

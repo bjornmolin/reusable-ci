@@ -11,6 +11,11 @@ on:
       pr-policy-json:
         required: true
         type: string
+      rust-apt-packages:
+        description: "Space-separated apt packages forwarded to lint-rust for native deps."
+        required: false
+        default: ""
+        type: string
       reusable-ci-ref:
         required: false
         default: "main"
@@ -86,6 +91,7 @@ jobs:
       enable-rustfmt: ${{ fromJson(inputs['pr-policy-json']).rustfmt }}
       enable-clippy: ${{ fromJson(inputs['pr-policy-json']).clippy }}
       enable-cargoaudit: ${{ fromJson(inputs['pr-policy-json']).cargoaudit }}
+      apt-packages: ${{ inputs['rust-apt-packages'] }}
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
   quality-status:
     name: Status

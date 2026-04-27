@@ -76,11 +76,22 @@ jobs:
     with:
       enable-swiftformat: ${{ fromJson(inputs['pr-policy-json']).swiftformat }}
       enable-swiftlint: ${{ fromJson(inputs['pr-policy-json']).swiftlint }}
+  rust-lint:
+    name: Rust Lint
+    if: ${{ fromJson(inputs['pr-policy-json']).rust }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint-rust.yml
+    with:
+      enable-rustfmt: ${{ fromJson(inputs['pr-policy-json']).rustfmt }}
+      enable-clippy: ${{ fromJson(inputs['pr-policy-json']).clippy }}
+      enable-cargoaudit: ${{ fromJson(inputs['pr-policy-json']).cargoaudit }}
+      reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
   quality-status:
     name: Status
     runs-on: ubuntu-latest
     if: always()
-    needs: [commit-lint, license-lint, dependency-review, sast-opengrep, megalint, publiccode-lint, devbase-check-lint, swift-lint]
+    needs: [commit-lint, license-lint, dependency-review, sast-opengrep, megalint, publiccode-lint, devbase-check-lint, swift-lint, rust-lint]
     steps:
       - name: Checkout reusable-ci scripts
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -99,6 +110,7 @@ jobs:
           CHECK_PUBLICCODELINT: Publiccode Lint|${{ fromJson(inputs['pr-policy-json']).publiccodelint }}|${{ needs.publiccode-lint.result }}|true
           CHECK_DEVBASECHECK: Devbase Check|${{ fromJson(inputs['pr-policy-json']).devbasecheck }}|${{ needs.devbase-check-lint.result }}|false
           CHECK_SWIFT: Swift Lint|${{ fromJson(inputs['pr-policy-json']).swift }}|${{ needs.swift-lint.result }}|false
+          CHECK_RUST: Rust Lint|${{ fromJson(inputs['pr-policy-json']).rust }}|${{ needs.rust-lint.result }}|false
         run: |
           bash .github-shared/scripts/summary/write-quality-check-status.sh \
             "$CHECK_COMMITLINT" \
@@ -108,10 +120,11 @@ jobs:
             "$CHECK_MEGALINT" \
             "$CHECK_PUBLICCODELINT" \
             "$CHECK_DEVBASECHECK" \
-            "$CHECK_SWIFT"
+            "$CHECK_SWIFT" \
+            "$CHECK_RUST"
   summarize-quality-stage:
     name: Summary
-    needs: [commit-lint, license-lint, dependency-review, sast-opengrep, megalint, publiccode-lint, devbase-check-lint, swift-lint, quality-status]
+    needs: [commit-lint, license-lint, dependency-review, sast-opengrep, megalint, publiccode-lint, devbase-check-lint, swift-lint, rust-lint, quality-status]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -135,6 +148,7 @@ jobs:
           PUBLICCODELINT_ENABLED: ${{ fromJson(inputs['pr-policy-json']).publiccodelint }}
           DEVBASECHECK_ENABLED: ${{ fromJson(inputs['pr-policy-json']).devbasecheck }}
           SWIFT_ENABLED: ${{ fromJson(inputs['pr-policy-json']).swift }}
+          RUST_ENABLED: ${{ fromJson(inputs['pr-policy-json']).rust }}
           COMMITLINT_RESULT: ${{ needs.commit-lint.result }}
           LICENSLINT_RESULT: ${{ needs.license-lint.result }}
           DEPENDENCYREVIEW_RESULT: ${{ needs.dependency-review.result }}
@@ -143,6 +157,7 @@ jobs:
           PUBLICCODELINT_RESULT: ${{ needs.publiccode-lint.result }}
           DEVBASECHECK_RESULT: ${{ needs.devbase-check-lint.result }}
           SWIFT_RESULT: ${{ needs.swift-lint.result }}
+          RUST_RESULT: ${{ needs.rust-lint.result }}
         run: bash .github-shared/scripts/summary/write-pr-quality-stage-result.sh
       - name: Upload quality stage manifests
         if: always() && hashFiles('.ci-results/*.json') != ''

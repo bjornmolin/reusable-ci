@@ -207,6 +207,9 @@ with:
   linters.devbasecheck: false      # Recommended: replaces deprecated linters
   linters.swiftformat: false       # Swift format for iOS/macOS
   linters.swiftlint: false         # SwiftLint for iOS/macOS
+  linters.clippy: false            # cargo clippy for Rust
+  linters.rustfmt: false           # cargo fmt --check for Rust
+  linters.cargoaudit: false        # cargo audit (RUSTSEC) for Rust
   reusable-ci-ref: v2.7.0           # Match the pinned workflow release
 ```
 

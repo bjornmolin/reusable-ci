@@ -117,12 +117,14 @@ run_resolve_artifact_name() {
 # Rust Project Tests
 # =============================================================================
 
-@test "resolve-artifact-name returns rust-build-sbom for rust" {
+@test "resolve-artifact-name returns rust-build-artifacts and rust-build-sbom for rust" {
   run_resolve_artifact_name "rust"
 
   assert_success
-  # Rust builder is SBOM-only, so build artifact and SBOM name coincide.
-  assert_line "name=rust-build-sbom"
+  # Rust builder uploads binaries under rust-build-artifacts and SBOM under
+  # rust-build-sbom; the two names are deliberately distinct so SBOM and
+  # binaries can be consumed independently.
+  assert_line "name=rust-build-artifacts"
   assert_line "sbom-name=rust-build-sbom"
 }
 

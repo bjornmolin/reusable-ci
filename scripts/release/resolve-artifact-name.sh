@@ -45,11 +45,11 @@ main() {
     printf "sbom-name=go-build-sbom\n"
     ;;
   rust)
-    # Rust workflow is SBOM-only and not wired into release-orchestrator;
-    # this name stays in sync with build-rust.yml for consumers that
-    # call it directly. `name` and `sbom-name` are identical because the
-    # workflow only produces an SBOM artifact.
-    printf "name=rust-build-sbom\n"
+    # Rust builder uploads binaries (when upload-binaries=true) under
+    # rust-build-artifacts; the Build SBOM is a separate compliance
+    # deliverable uploaded as rust-build-sbom. Names are kept in sync with
+    # build-rust.yml.
+    printf "name=rust-build-artifacts\n"
     printf "sbom-name=rust-build-sbom\n"
     ;;
   *)

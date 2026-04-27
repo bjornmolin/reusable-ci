@@ -2,19 +2,30 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 #
-# Rust Build SBOM (beta)
+# Rust Builder
 #
-# Generates a CycloneDX Build SBOM for a Rust project or workspace using
-# cargo-cyclonedx, and uploads it as `rust-build-sbom` by default.
-# Workspaces get one bom.json per crate; the aggregator in
-# scripts/sbom/generate-sboms.sh picks the aggregate (root crate) BOM — the
-# one with the smallest path depth — when consolidating.
+# Purpose: Builds Rust projects (crates and workspaces) and optionally
+# uploads built binaries plus a CycloneDX Build SBOM for downstream
+# publishing / compliance steps.
 #
-# Intentionally SBOM-only — this workflow does not invoke `cargo build` or
-# `cargo test`, so it is not (yet) a drop-in Rust builder. Do not wire into
-# release-orchestrator; call directly via `uses:` until a full Rust builder
-# lands. cargo-cyclonedx resolves the dependency graph from Cargo.lock, so
-# the SBOM is accurate whether or not a build has been performed.
+# Build Process:
+#   1. (Optional) Install apt packages for native deps (rdkafka, openssl, ...)
+#   2. Install Rust toolchain (preferring rust-toolchain.toml in the working
+#      directory when present; falls back to the `rust-toolchain` input).
+#   3. Restore Swatinem/rust-cache (target/, ~/.cargo/registry, git, bin).
+#   4. cargo build (configurable args).
+#   5. cargo test (skipped when skip-tests=true).
+#   6. (Optional) Generate Build SBOM via cargo-cyclonedx.
+#   7. (Optional) Upload built binaries from target/release as
+#      `rust-build-artifacts`.
+#   8. (Optional) Upload Build SBOM as `rust-build-sbom`.
+#
+# Toolchain detection:
+#   If working-directory contains a `rust-toolchain.toml` (or legacy
+#   `rust-toolchain` file), rustup honours it automatically when cargo runs
+#   inside that directory. The explicit `rust-toolchain` input is used to
+#   pre-install a toolchain so the cache key is stable across runs that have
+#   not yet pinned a file.
 #
 # `cargo install --locked --version` pins cargo-cyclonedx to a reproducible
 # version so the SBOM tool itself can't drift under us.
@@ -24,8 +35,9 @@ on:
   workflow_call:
     inputs:
       rust-toolchain:
-        description: "Rust toolchain version (e.g., 1.90, stable)"
-        required: true
+        description: "Rust toolchain (e.g. 1.94, stable). Ignored when working-directory contains rust-toolchain.toml."
+        required: false
+        default: "stable"
         type: string
       working-directory:
         description: "Working directory"
@@ -37,18 +49,48 @@ on:
         required: false
         default: "main"
         type: string
+      apt-packages:
+        description: "Space-separated apt packages to install before building (e.g. for native deps like rdkafka)."
+        required: false
+        default: ""
+        type: string
+      cargo-args:
+        description: "Extra args appended to `cargo build`."
+        required: false
+        default: "--workspace --locked"
+        type: string
+      test-args:
+        description: "Extra args appended to `cargo test` (used unless skip-tests=true)."
+        required: false
+        default: "--workspace --locked"
+        type: string
+      skip-tests:
+        description: "Skip cargo test"
+        required: false
+        default: false
+        type: boolean
+      cache:
+        description: "Cache strategy (swatinem|none)."
+        required: false
+        default: "swatinem"
+        type: string
+      upload-binaries:
+        description: "Upload built binaries from target/release as rust-build-artifacts."
+        required: false
+        default: false
+        type: boolean
       artifact-name:
-        description: "Artifact name for uploads (defaults to 'rust-build-sbom')"
+        description: "Override the SBOM artifact upload name (defaults to 'rust-build-sbom')."
         required: false
         default: ""
         type: string
       enable-build-sbom:
-        description: "Generate CycloneDX Build SBOM (default true)"
+        description: "Generate CycloneDX Build SBOM via cargo-cyclonedx."
         required: false
         default: true
         type: boolean
       reusable-ci-ref:
-        description: "Ref of diggsweden/reusable-ci to source shared scripts from"
+        description: "Ref of diggsweden/reusable-ci to source shared scripts from."
         required: false
         default: "main"
         type: string
@@ -56,9 +98,9 @@ permissions:
   contents: read
 jobs:
   build-rust:
-    name: Build Rust
+    name: Build Rust Project
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -66,18 +108,74 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.branch }}
+      - name: Checkout reusable-ci scripts
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: diggsweden/reusable-ci
+          ref: ${{ inputs['reusable-ci-ref'] }}
+          path: .github-shared
+          sparse-checkout: scripts
+          fetch-depth: 1
+      - name: Install apt packages
+        if: ${{ inputs['apt-packages'] != '' }}
+        env:
+          APT_PACKAGES: ${{ inputs['apt-packages'] }}
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2086 # word-splitting intentional for package list
+          sudo apt-get install -y --no-install-recommends $APT_PACKAGES
+      - name: Detect Rust toolchain
+        id: toolchain
+        working-directory: ${{ inputs['working-directory'] }}
+        env:
+          INPUT_TOOLCHAIN: ${{ inputs['rust-toolchain'] }}
+        run: |
+          # Prefer pinned rust-toolchain.toml / rust-toolchain in the project;
+          # fall back to the workflow input. rustup always honours the file
+          # automatically once installed, but we still need a concrete version
+          # string so the cache key is deterministic.
+          if [[ -f rust-toolchain.toml ]]; then
+            chan=$(awk -F'"' '/^channel/ {print $2; exit}' rust-toolchain.toml)
+            resolved="${chan:-$INPUT_TOOLCHAIN}"
+            printf "source=rust-toolchain.toml\n" >> "$GITHUB_OUTPUT"
+          elif [[ -f rust-toolchain ]]; then
+            resolved="$(tr -d '[:space:]' < rust-toolchain)"
+            printf "source=rust-toolchain\n" >> "$GITHUB_OUTPUT"
+          else
+            resolved="$INPUT_TOOLCHAIN"
+            printf "source=input\n" >> "$GITHUB_OUTPUT"
+          fi
+          printf "version=%s\n" "$resolved" >> "$GITHUB_OUTPUT"
+          printf "Resolved Rust toolchain: %s (source: %s)\n" \
+            "$resolved" "$(awk -F= '/^source=/{print $2}' "$GITHUB_OUTPUT" | tail -n1)"
       - name: Install Rust toolchain
         env:
-          TOOLCHAIN: ${{ inputs['rust-toolchain'] }}
+          TOOLCHAIN: ${{ steps.toolchain.outputs.version }}
         run: |
           rustup toolchain install "$TOOLCHAIN" --profile minimal
           rustup default "$TOOLCHAIN"
       # Caches ~/.cargo (registry, git, installed bins) + target/. Keyed by
       # Cargo.lock so cache invalidates when dependencies change.
       - name: Cache cargo
+        if: ${{ inputs.cache == 'swatinem' }}
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           workspaces: ${{ inputs['working-directory'] }}
+      - name: Cargo build
+        working-directory: ${{ inputs['working-directory'] }}
+        env:
+          CARGO_ARGS: ${{ inputs['cargo-args'] }}
+        run: |
+          # shellcheck disable=SC2086 # CARGO_ARGS is a deliberate arg list
+          cargo build $CARGO_ARGS
+      - name: Cargo test
+        if: ${{ !inputs['skip-tests'] }}
+        working-directory: ${{ inputs['working-directory'] }}
+        env:
+          TEST_ARGS: ${{ inputs['test-args'] }}
+        run: |
+          # shellcheck disable=SC2086 # TEST_ARGS is a deliberate arg list
+          cargo test $TEST_ARGS
       - name: Generate Build SBOM
         id: sbom
         if: ${{ inputs['enable-build-sbom'] }}
@@ -91,20 +189,8 @@ jobs:
           # --all covers every workspace member; single-crate projects get one
           # bom.json at the crate root. --override-filename normalises the name.
           cargo cyclonedx --all --format json --override-filename bom
-      - name: Upload Rust SBOM
-        if: steps.sbom.outcome == 'success'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: ${{ inputs['artifact-name'] || 'rust-build-sbom' }}
-          path: |
-            ${{ inputs['working-directory'] }}/bom.json
-            ${{ inputs['working-directory'] }}/**/bom.json
-          retention-days: 7
-          # SBOM generation is advisory (beta); a missing bom.json should not
-          # fail the workflow.
-          if-no-files-found: warn
       - name: Write SBOM status to step summary
-        if: always()
+        if: ${{ always() && inputs['enable-build-sbom'] }}
         env:
           SBOM_OUTCOME: ${{ steps.sbom.outcome }}
           WORKDIR: ${{ inputs['working-directory'] }}
@@ -122,3 +208,57 @@ jobs:
               printf -- '- ⚠️ Generation step did not succeed (continued as advisory)\n'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: List built binaries
+        if: ${{ inputs['upload-binaries'] }}
+        id: binaries
+        working-directory: ${{ inputs['working-directory'] }}
+        run: |
+          # Restrict to executable files in target/release (skip deps/, build/,
+          # .d/.rlib/.so artefacts which are toolchain by-products).
+          mapfile -t bins < <(find target/release -maxdepth 1 -type f -perm -u+x \
+            ! -name '*.d' ! -name '*.rlib' ! -name '*.so' 2>/dev/null || true)
+          printf "Found %s binary(ies) in target/release/\n" "${#bins[@]}"
+          for b in "${bins[@]}"; do
+            printf -- '- %s\n' "$b"
+          done
+      # Upload built binaries when caller opts in. Default is off so existing
+      # SBOM-only callers do not start producing a new artefact silently.
+      - name: Upload Rust binaries
+        if: ${{ inputs['upload-binaries'] }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: rust-build-artifacts
+          path: |
+            ${{ inputs['working-directory'] }}/target/release/*
+            !${{ inputs['working-directory'] }}/target/release/*.d
+            !${{ inputs['working-directory'] }}/target/release/*.rlib
+            !${{ inputs['working-directory'] }}/target/release/deps/**
+            !${{ inputs['working-directory'] }}/target/release/build/**
+            !${{ inputs['working-directory'] }}/target/release/.fingerprint/**
+            !${{ inputs['working-directory'] }}/target/release/incremental/**
+          retention-days: 7
+          if-no-files-found: warn
+      # Build SBOM is a separate compliance deliverable; uploaded under a
+      # distinct name so consumers can grab it independently of binaries.
+      - name: Upload Rust Build SBOM
+        if: ${{ inputs['enable-build-sbom'] && steps.sbom.outcome == 'success' }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: ${{ inputs['artifact-name'] || 'rust-build-sbom' }}
+          path: |
+            ${{ inputs['working-directory'] }}/bom.json
+            ${{ inputs['working-directory'] }}/**/bom.json
+          retention-days: 7
+          # SBOM generation is advisory; a missing bom.json should not fail
+          # the workflow.
+          if-no-files-found: warn
+      - name: Generate build summary
+        if: always()
+        env:
+          RUST_TOOLCHAIN: ${{ steps.toolchain.outputs.version }}
+          TOOLCHAIN_SOURCE: ${{ steps.toolchain.outputs.source }}
+          WORKING_DIRECTORY: ${{ inputs['working-directory'] }}
+          SKIP_TESTS: ${{ inputs['skip-tests'] }}
+          UPLOAD_BINARIES: ${{ inputs['upload-binaries'] }}
+          ENABLE_BUILD_SBOM: ${{ inputs['enable-build-sbom'] }}
+        run: bash .github-shared/scripts/summary/write-rust-build-summary.sh

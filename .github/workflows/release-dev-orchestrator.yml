@@ -43,7 +43,7 @@ on:
   workflow_call: # yamllint disable-line rule:truthy
     inputs:
       project-type:
-        description: "Project type: maven, npm"
+        description: "Project type: maven, npm, rust"
         required: true
         type: string
       container-file:

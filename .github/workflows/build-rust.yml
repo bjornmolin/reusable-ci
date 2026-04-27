@@ -42,6 +42,16 @@ on:
         required: false
         default: ""
         type: string
+      enable-build-sbom:
+        description: "Generate CycloneDX Build SBOM (default true)"
+        required: false
+        default: true
+        type: boolean
+      reusable-ci-ref:
+        description: "Ref of diggsweden/reusable-ci to source shared scripts from"
+        required: false
+        default: "main"
+        type: string
 permissions:
   contents: read
 jobs:
@@ -70,6 +80,7 @@ jobs:
           workspaces: ${{ inputs['working-directory'] }}
       - name: Generate Build SBOM
         id: sbom
+        if: ${{ inputs['enable-build-sbom'] }}
         continue-on-error: true
         working-directory: ${{ inputs['working-directory'] }}
         env:

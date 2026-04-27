@@ -317,6 +317,7 @@ jobs:
       gradle-artifacts: ${{ needs.parse-config.outputs.gradle-artifacts }}
       gradleandroid-artifacts: ${{ needs.parse-config.outputs.gradleandroid-artifacts }}
       xcodeios-artifacts: ${{ needs.parse-config.outputs.xcodeios-artifacts }}
+      rust-artifacts: ${{ needs.parse-config.outputs.rust-artifacts }}
   # ===== Stage 4: Publish =====
   # Publish fanout now lives below this control-plane stage call.
   execute-publish-stage:

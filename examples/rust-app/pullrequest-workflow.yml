@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2025 Digg - Agency for Digital Government
+#
+# SPDX-License-Identifier: CC0-1.0
+
+name: Pull Request Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-checks:
+    uses: diggsweden/reusable-ci/.github/workflows/pullrequest-orchestrator.yml@v2.8.0
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: read
+    with:
+      reusable-ci-ref: v2.8.0
+      project-type: rust
+      # Recommended: Use devbase-check (lightweight, just+mise-based)
+      linters.devbasecheck: true
+      linters.commitlint: false
+      linters.licenselint: false
+      linters.megalint: false
+      # Rust-specific lints (off by default; enable per project)
+      linters.clippy: true
+      linters.rustfmt: true
+      linters.cargoaudit: true
+      # OpenGrep SAST is enabled by default. Opt out if needed:
+      # security.sast-opengrep: false
+
+  # Optional: explicit build-rust call when you need apt-packages or a
+  # custom test-args string (e.g. workspaces with native deps).
+  # build-rust:
+  #   needs: [pr-checks]
+  #   uses: diggsweden/reusable-ci/.github/workflows/build-rust.yml@v2.8.0
+  #   secrets: inherit
+  #   with:
+  #     reusable-ci-ref: v2.8.0
+  #     apt-packages: "libssl-dev pkg-config"

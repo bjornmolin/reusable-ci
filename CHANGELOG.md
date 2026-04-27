@@ -16,25 +16,31 @@ contract end-to-end).
 
 ### Added
 
-- `artifacts.yml` per-artefact `sboms: enum` field — `all` (default for
-  buildable types), `none`, `build`, `analyzed-artifact`, `analyzed-container`,
-  or a comma-list. CISA-aligned naming.
-- `release-orchestrator.yml` input `release.sboms` — pipeline-level cap on
-  which SBOM types are produced. Defaults to `all`. The release-dev and
-  release-create-github orchestrators expose the flat `sboms` form to match
-  their own input conventions.
-- `scripts/config/expand-sboms.sh` helper. Validates and expands the `sboms`
-  enum to a JSON array (`--format json`, default) or comma-list
-  (`--format comma`). Supports `--exclude <layer>`.
-- Flag-based CLI on `generate-sboms.sh` — `--project-type`, `--layers`,
-  `--version`, `--name`, `--working-dir`, `--container-image`, `--create-zip`,
-  `--help`. Replaces the previous 7 positional args.
-- Per-stack build-time SBOM enforcement: setting `sboms: none` (or any value
-  excluding `build`) really skips the cyclonedx plugin step in that artefact's
-  builder. Useful for monorepos with toy/internal artefacts.
-- Empty-intersection misconfiguration is now surfaced in the GitHub step
-  summary (in addition to the `::warning::` annotation). Catches "release cap
-  excludes everything the artefacts wanted."
+- **Rust first-class support** (Phases 1-3). `build-rust.yml` is now a
+  full builder — `cargo build --release` + `cargo test` + CycloneDX SBOM
+  via `cargo-cyclonedx`. Toolchain auto-detects `rust-toolchain.toml`
+  when present, otherwise uses the `rust-toolchain` input. New
+  `apt-packages` input installs native deps before building.
+  `upload-binaries: false` by default to preserve SBOM-only behaviour
+  for existing direct callers.
+- `release-orchestrator.yml` now dispatches `build-rust.yml` for `rust`
+  artefacts in `artifacts.yml` exactly like npm/maven. `rust-artifacts`
+  flows through `release-build-stage.yml` → `summarize-build-stage`
+  → `write-build-stage-result.sh`. Per-artefact `config.rust-toolchain`
+  is honoured.
+- New `lint-rust.yml` workflow with four independently-togglable jobs:
+  `cargo fmt --check`, `cargo clippy`, `cargo audit`, and (opt-in)
+  `cargo deny check`. Mirrors the swift two-flag dispatch pattern.
+  `apt-packages` input on the clippy job for crates with native deps.
+- `pullrequest-orchestrator.yml` gains three new sub-flags —
+  `linters.clippy`, `linters.rustfmt`, `linters.cargoaudit` (all default
+  false). `write-pr-interface.sh` emits an umbrella `rust` policy bool
+  that gates the rust-lint dispatch in `pullrequest-quality-stage.yml`.
+- `examples/rust-app/` — full configuration example mirroring the npm
+  / maven examples.
+- `scripts/summary/write-rust-build-summary.sh` — per-artefact build
+  summary in the GitHub step summary, matching the npm/maven helper.
+
 
 ### Changed
 

@@ -17,3 +17,22 @@ scripts checkout (resolved before any tag movement). The name suggests it is the
 original ref input, but it is actually a resolved SHA used only for checking out
 helper scripts. Consider renaming to `reusable-ci-sha` or `scripts-ref` to make
 the intent clearer.
+
+## Rust first-class support — Phase 4 (deferred)
+
+v2.8.0 ships Rust as a full builder + linter. The release-side ergonomics
+that other ecosystems have are still missing for Rust:
+
+- **`publish-cratesio.yml`** — analogous to `publish-mavencentral.yml` /
+  `publish-npm.yml`. Wired into `release-orchestrator.yml` via
+  `publish-to: [crates-io]`. Needs API token handling, dry-run support,
+  and workspace publishing order.
+- **`scripts/version/bump-version.sh` rust case** — read/write
+  `Cargo.toml`'s `[package].version` (and `[workspace.package].version`
+  when present). Today's `version-bump.yml` skips Rust artefacts.
+- **`validate-release-prerequisites.yml` choices** — add a Rust path
+  that asserts `Cargo.lock` is checked in and `cargo --version` matches
+  `rust-toolchain.toml` channel.
+
+Track concrete progress via dedicated branches; each item is independent
+and shippable as a v2.8.x patch or v2.9.0 minor.

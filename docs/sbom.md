@@ -110,13 +110,13 @@ Source-layer Syft scans see declared dependencies but not the resolved version g
 | Gradle (JVM) | `cyclonedx-gradle-plugin` (init-script) | `build-gradle-app.yml` | `gradle-build-sbom` (or `<artifact-name>-sbom` when overridden) |
 | Gradle (Android) | same as above | `build-gradle-android.yml` | per matrix-variant name |
 | npm | `@cyclonedx/cyclonedx-npm` (via `npx`) | `build-npm.yml` | `npm-build-sbom` |
-| Cargo (beta) | `cargo-cyclonedx` (`--all` for workspaces) | `build-rust.yml` | `rust-build-sbom` |
+| Cargo | `cargo-cyclonedx` (`--all` for workspaces) | `build-rust.yml` | `rust-build-sbom` |
 
 The build SBOM lives in its own upload artefact — separate from the code artefact (`maven-build-artifacts`, `npm-build-artifacts`, etc.). A broken SBOM plugin can't take down the code upload. Tool versions are pinned and tracked by Renovate via `# renovate: datasource=...` comments.
 
-### Rust workflow is direct-call only (beta)
+### Rust workflow
 
-`build-rust.yml` is currently SBOM-only — it runs `cargo-cyclonedx` without invoking `cargo build`/`cargo test`. cargo-cyclonedx resolves the dependency graph from `Cargo.lock`, so the SBOM is accurate whether or not a build has been performed. The workflow is **not** wired into `release-orchestrator.yml`; consumers call it directly via `uses:` until a full Rust builder lands. The filename stays stable across that expansion.
+`build-rust.yml` is a full first-class builder as of v2.8.0. It runs `cargo build --release` and `cargo test`, optionally uploads the built binaries (`upload-binaries: true`), and always emits the build SBOM via `cargo-cyclonedx` against `Cargo.lock`. Toolchain selection auto-detects `rust-toolchain.toml` when present, otherwise uses the `rust-toolchain` input (default `stable`). The workflow is wired into `release-orchestrator.yml` exactly like the npm/maven builders, and is also callable directly.
 
 ## How it works internally
 
@@ -131,8 +131,6 @@ The per-artefact `sboms` value drives both **build-time plugin execution** and *
 Setting `sboms: none` on an artefact really means "skip everything for this artefact" — both the build-time plugin and the release-bundle inclusion. Useful for toy artefacts in a monorepo that you don't want spending CI minutes on.
 
 When called directly (not from `release-build-stage.yml`), each builder defaults `enable-build-sbom: true` for backward compatibility — direct callers always get a Build SBOM unless they explicitly say otherwise.
-
-`build-rust.yml` is intentionally **not** gated this way: it's SBOM-only by design (no `cargo build` step), so gating it would make the entire workflow a no-op. Direct callers control its execution by choosing whether to invoke it at all.
 
 ### Container scanning is derived, not separately gated
 

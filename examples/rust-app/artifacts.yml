@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2025 Digg - Agency for Digital Government
+#
+# SPDX-License-Identifier: CC0-1.0
+# Example: Simple Rust application with container
+artifacts:
+  - name: my-rust-app
+    project-type: rust
+    working-directory: .
+    config:
+      # Optional. Auto-detected from rust-toolchain.toml when present.
+      rust-toolchain: stable
+      # Optional. Forwarded as the `apt-packages` builder input for native deps.
+      # apt-packages: "libssl-dev pkg-config"
+containers:
+  - name: my-rust-app
+    from: [my-rust-app]
+    container-file: Containerfile
+    context: .
+    platforms: linux/amd64,linux/arm64
+    enable-slsa: true
+    enable-scan: true

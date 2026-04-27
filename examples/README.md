@@ -60,7 +60,24 @@ Complete working examples for different project types.
 
 ---
 
-### 4. [Monorepo](monorepo/)
+### 4. [Rust Application](rust-app/)
+**Use case:** Rust binary or workspace with container
+
+**Contains:**
+- Pull request workflow with clippy / rustfmt / cargo audit
+- Rust application configuration (auto-detect via `rust-toolchain.toml`)
+- `cargo build --release` + `cargo test` + CycloneDX SBOM
+- Container build with multi-platform support
+- GitHub Packages publishing
+
+**Good for:**
+- Rust services
+- CLI tools
+- Cargo workspaces
+
+---
+
+### 5. [Monorepo](monorepo/)
 **Use case:** Multiple artifacts in one repository
 
 **Contains:**

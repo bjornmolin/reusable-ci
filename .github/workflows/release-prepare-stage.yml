@@ -73,7 +73,7 @@ jobs:
       - name: Checkout reusable-ci scripts
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: diggsweden/reusable-ci
+          repository: bjornmolin/reusable-ci
           ref: ${{ inputs['reusable-ci-ref'] }}
           path: .github-shared
           sparse-checkout: scripts

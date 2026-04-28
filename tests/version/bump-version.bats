@@ -383,44 +383,50 @@ EOF
 @test "bump-version updates single-crate Rust project" {
   create_cargo_single_crate "0.1.0"
 
-  # cargo-set-version already present (skip install path)
-  stub cargo-set-version "0.2.0 : true"
+  # cargo-set-version present on PATH (existence-only); script invokes
+  # `cargo set-version 0.2.0` which we stub.
+  create_mock_binary "cargo-set-version" "exit 0"
+  use_mock_path
+  stub cargo "set-version 0.2.0 : true"
 
   run_bump_version "rust" "0.2.0" "$TEST_DIR"
 
   assert_success
   assert_output --partial "Single-crate project"
   assert_output --partial "Rust version updated"
-  unstub cargo-set-version
+  unstub cargo
 }
 
 @test "bump-version updates Rust workspace with --workspace" {
   create_cargo_workspace
 
-  stub cargo-set-version "--workspace 0.2.0 : true"
+  create_mock_binary "cargo-set-version" "exit 0"
+  use_mock_path
+  stub cargo "set-version --workspace 0.2.0 : true"
 
   run_bump_version "rust" "0.2.0" "$TEST_DIR"
 
   assert_success
   assert_output --partial "Detected Cargo workspace"
   assert_output --partial "Rust version updated"
-  unstub cargo-set-version
+  unstub cargo
 }
 
 @test "bump-version installs cargo-edit when missing" {
   create_cargo_single_crate "0.1.0"
 
   # Verify the install branch runs when cargo-set-version is absent.
-  # We stub `cargo` so `cargo install` succeeds without actually installing
-  # anything. The subsequent `cargo-set-version` call then fails with 127
-  # (still not on PATH after the no-op install), which is fine for this
-  # test - we only assert the install branch was entered.
-  stub cargo "install --locked cargo-edit --version 0.13.7 : true"
+  # `cargo install` succeeds (no-op stub); the follow-up `cargo set-version`
+  # call also gets a stub so the script reaches the success path.
+  stub cargo \
+    "install --locked cargo-edit --version 0.13.7 : true" \
+    "set-version 0.2.0 : true"
 
   run_bump_version "rust" "0.2.0" "$TEST_DIR"
 
-  assert_failure
+  assert_success
   assert_output --partial "Installing cargo-edit"
+  assert_output --partial "Rust version updated"
   unstub cargo
 }
 

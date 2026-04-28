@@ -162,15 +162,15 @@ main() {
     # scope for v2.8.0 - users with that layout should set
     # `release.skipversionbump: true` and manage versions manually.
     #
-    # We invoke `cargo-set-version` directly rather than `cargo set-version`
-    # to avoid an extra subprocess and to keep the call deterministic in
-    # environments where `cargo` is not on PATH (e.g. unit tests).
+    # We invoke `cargo set-version` (the canonical cargo-edit subcommand
+    # form). The `cargo-set-version` shim added to PATH by the install
+    # above is what makes this work.
     if grep -q '^\[workspace\]' Cargo.toml; then
       log "Detected Cargo workspace; bumping all members to ${VERSION}"
-      cargo-set-version --workspace "$VERSION"
+      cargo set-version --workspace "$VERSION"
     else
       log "Single-crate project; bumping to ${VERSION}"
-      cargo-set-version "$VERSION"
+      cargo set-version "$VERSION"
     fi
 
     log_success "Rust version updated"

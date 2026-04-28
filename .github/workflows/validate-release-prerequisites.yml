@@ -121,6 +121,7 @@ jobs:
       - name: Verify Triggered by Tag
         run: bash .github-shared/scripts/validate/ref-type.sh "${{ github.ref_type }}" "${{ github.ref_name }}" "${{ github.ref }}"
       - name: Import GPG key
+        if: ${{ inputs['sign-artifacts'] }}
         uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
         with:
           gpg_private_key: ${{ secrets.OSPO_BOT_GPG_PRIV }}

@@ -94,6 +94,11 @@ on:
         required: false
         default: "audit"
         type: string
+      sign-artifacts:
+        description: "Whether to import the GPG key and sign the version-bump commit"
+        required: false
+        default: true
+        type: boolean
       reusable-ci-ref:
         description: "Ref for reusable-ci helper scripts checkout (defaults to main)"
         required: false
@@ -157,6 +162,7 @@ jobs:
           path: .github-shared
           sparse-checkout: scripts
       - name: Import GPG key
+        if: ${{ inputs['sign-artifacts'] }}
         id: import-gpg
         uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
         with:
@@ -328,9 +334,9 @@ jobs:
 
             [skip ci]
           file_pattern: ${{ steps.file-pattern.outputs.pattern }}
-          commit_author: "${{ steps.import-gpg.outputs.name }} <${{ steps.import-gpg.outputs.email }}>"
-          commit_user_name: ${{ steps.import-gpg.outputs.name }}
-          commit_user_email: ${{ steps.import-gpg.outputs.email }}
+          commit_author: ${{ steps.import-gpg.outputs.name && format('{0} <{1}>', steps.import-gpg.outputs.name, steps.import-gpg.outputs.email) || 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>' }}
+          commit_user_name: ${{ steps.import-gpg.outputs.name || 'github-actions[bot]' }}
+          commit_user_email: ${{ steps.import-gpg.outputs.email || '41898282+github-actions[bot]@users.noreply.github.com' }}
           commit_options: " --signoff"
       - name: Move tag to current commit
         id: move-tag

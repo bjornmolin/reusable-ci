@@ -23,6 +23,11 @@ on:
         required: false
         default: "false"
         type: string
+      sign-artifacts:
+        description: "Whether to GPG-sign the version-bump commit (forwarded to version-bump.yml)"
+        required: false
+        default: "true"
+        type: string
       file-pattern:
         required: true
         type: string
@@ -92,6 +97,7 @@ jobs:
       gradle-version-file: ${{ matrix.artifact.config['gradle-version-file'] }}
       working-directory: ${{ matrix.artifact['working-directory'] }}
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
+      sign-artifacts: ${{ inputs['sign-artifacts'] == 'true' }}
   execute-version-bump-rust:
     name: Prepare Release - Rust workspace
     # Single-job Rust version-bump: a Cargo workspace is the unit of versioning,
@@ -110,6 +116,7 @@ jobs:
       file-pattern: ${{ inputs['file-pattern'] }}
       working-directory: '.'
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
+      sign-artifacts: ${{ inputs['sign-artifacts'] == 'true' }}
   summarize-prepare-stage:
     name: Summarize Prepare Stage
     needs: [build-non-rust-artifacts, execute-version-bump, execute-version-bump-rust]

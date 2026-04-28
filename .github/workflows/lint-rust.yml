@@ -197,7 +197,7 @@ jobs:
       - name: Install cargo-audit
         env:
           # renovate: datasource=crate depName=cargo-audit
-          CARGO_AUDIT_VERSION: "0.21.2"
+          CARGO_AUDIT_VERSION: "0.22.1"
         run: cargo install --locked cargo-audit --version "${CARGO_AUDIT_VERSION}"
       - name: Run cargo audit
         working-directory: ${{ inputs['working-directory'] }}

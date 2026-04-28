@@ -298,6 +298,7 @@ jobs:
       reusable-ci-ref: ${{ needs.parse-config.outputs.reusable-ci-ref }}
       artifacts: ${{ needs.parse-config.outputs.artifacts }}
       should-run-version-bump: ${{ fromJson(needs.parse-config.outputs['release-policy-json']).run_version_bump }}
+      has-rust: ${{ needs.parse-config.outputs.has-rust }}
       file-pattern: ${{ inputs['file-pattern'] }}
   # ===== Stage 3: Build =====
   # Build fanout now lives below this control-plane stage call.

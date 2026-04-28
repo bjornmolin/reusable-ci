@@ -18,6 +18,11 @@ on:
       should-run-version-bump:
         required: true
         type: string
+      has-rust:
+        description: "Whether any Rust artifact is present (drives the single-job Rust version-bump path)"
+        required: false
+        default: "false"
+        type: string
       file-pattern:
         required: true
         type: string
@@ -33,16 +38,45 @@ on:
         value: ${{ jobs.summarize-prepare-stage.outputs.result-json }}
       release-sha:
         description: Commit SHA the release tag was moved to
-        value: ${{ jobs.execute-version-bump.outputs.release-sha }}
+        value: ${{ jobs.execute-version-bump-rust.outputs.release-sha || jobs.execute-version-bump.outputs.release-sha }}
 permissions:
   contents: read
 jobs:
+  build-non-rust-artifacts:
+    name: Filter non-Rust artifacts
+    if: ${{ inputs['should-run-version-bump'] == 'true' && inputs.artifacts != '[]' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifacts: ${{ steps.filter.outputs.artifacts }}
+      has-non-rust: ${{ steps.filter.outputs.has-non-rust }}
+    steps:
+      - name: Filter Rust artifacts out of the matrix
+        id: filter
+        env:
+          ARTIFACTS: ${{ inputs.artifacts }}
+        # Rust is handled by execute-version-bump-rust below as a single job
+        # to avoid matrix races when multiple Rust artifacts share one Cargo
+        # workspace. Other ecosystems keep the per-artifact matrix expansion.
+        run: |
+          filtered=$(printf '%s' "$ARTIFACTS" | jq -c '[.[] | select(.["project-type"] != "rust")]')
+          count=$(printf '%s' "$filtered" | jq 'length')
+          {
+            printf 'artifacts<<__EOF__\n%s\n__EOF__\n' "$filtered"
+            if [ "$count" -gt 0 ]; then
+              printf 'has-non-rust=true\n'
+            else
+              printf 'has-non-rust=false\n'
+            fi
+          } >> "$GITHUB_OUTPUT"
   execute-version-bump:
     name: Prepare Release - ${{ matrix.artifact.name }}
-    if: ${{ inputs['should-run-version-bump'] == 'true' && inputs.artifacts != '[]' }}
+    needs: [build-non-rust-artifacts]
+    if: ${{ needs.build-non-rust-artifacts.outputs['has-non-rust'] == 'true' }}
     strategy:
       matrix:
-        artifact: ${{ fromJson(inputs.artifacts) }}
+        artifact: ${{ fromJson(needs.build-non-rust-artifacts.outputs.artifacts) }}
       fail-fast: false
     permissions:
       contents: write
@@ -58,9 +92,27 @@ jobs:
       gradle-version-file: ${{ matrix.artifact.config['gradle-version-file'] }}
       working-directory: ${{ matrix.artifact['working-directory'] }}
       reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
+  execute-version-bump-rust:
+    name: Prepare Release - Rust workspace
+    # Single-job Rust version-bump: a Cargo workspace is the unit of versioning,
+    # so we bump once at the workspace root regardless of how many Rust artifacts
+    # the matrix would otherwise expand to. This avoids two matrix instances
+    # racing on `cargo set-version --workspace`, the commit, and the tag move.
+    if: ${{ inputs['should-run-version-bump'] == 'true' && inputs['has-rust'] == 'true' }}
+    permissions:
+      contents: write
+      packages: read
+    secrets: inherit
+    uses: ./.github/workflows/version-bump.yml
+    with:
+      branch: ${{ inputs.branch }}
+      project-type: rust
+      file-pattern: ${{ inputs['file-pattern'] }}
+      working-directory: '.'
+      reusable-ci-ref: ${{ inputs['reusable-ci-ref'] }}
   summarize-prepare-stage:
     name: Summarize Prepare Stage
-    needs: [execute-version-bump]
+    needs: [build-non-rust-artifacts, execute-version-bump, execute-version-bump-rust]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -82,5 +134,7 @@ jobs:
         env:
           ARTIFACTS: ${{ inputs.artifacts }}
           SHOULD_RUN_VERSION_BUMP: ${{ inputs['should-run-version-bump'] }}
+          HAS_RUST: ${{ inputs['has-rust'] }}
           PREPARE_RELEASE_RESULT: ${{ needs.execute-version-bump.result }}
+          PREPARE_RELEASE_RUST_RESULT: ${{ needs.execute-version-bump-rust.result }}
         run: bash .github-shared/scripts/summary/write-prepare-stage-result.sh

@@ -16,6 +16,18 @@ contract end-to-end).
 
 ### Added
 
+- **Rust version-bump support** in `version-bump.yml` via `cargo-edit`'s
+  `cargo set-version`. Workspaces are bumped uniformly with `--workspace`;
+  single-crate projects bump in place. To avoid matrix races when multiple
+  Rust artefacts share one Cargo workspace, `release-prepare-stage.yml`
+  dispatches Rust through a dedicated single-job path
+  (`execute-version-bump-rust`) at the workspace root, while the existing
+  matrix continues to handle non-Rust artefacts. The `rust` file pattern
+  in `get-file-pattern.sh` now uses `:(glob)**/Cargo.toml` so workspace
+  member version updates are committed alongside the root `Cargo.lock`.
+  `cargo-edit` is pinned to `0.13.7` and its `cargo-set-version` binary
+  is cached across runs. Per-crate independent versioning remains out of
+  scope (set `release.skipversionbump: true` and manage manually).
 - **Rust first-class support** (Phases 1-3). `build-rust.yml` is now a
   full builder — `cargo build --release` + `cargo test` + CycloneDX SBOM
   via `cargo-cyclonedx`. Toolchain auto-detects `rust-toolchain.toml`

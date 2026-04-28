@@ -95,6 +95,30 @@ exactly one place.
 - Container image → `ghcr.io/org/repo:v1.0.0`
 - Platforms → `linux/amd64`, `linux/arm64`
 
+## Version Bump
+
+`release-orchestrator.yml` bumps Rust versions via `cargo-edit`'s
+`cargo set-version`. Behaviour:
+
+- **Workspace** (`[workspace]` in root `Cargo.toml`): bumps every member
+  to the same version with `cargo set-version --workspace`. This is the
+  uniform-workspace model — all crates ship under one tag.
+- **Single crate**: bumps the crate's `[package].version` in place.
+
+Run-level details:
+
+- A single dedicated job (`execute-version-bump-rust`) handles Rust at
+  the workspace root, regardless of how many Rust artefacts are in
+  `artifacts.yml`. This avoids matrix races on `git push` / tag move.
+- `Cargo.lock` MUST be committed for reproducible builds; the bump
+  commits the regenerated lockfile alongside member `Cargo.toml`s.
+- `cargo-edit` is pinned to `0.13.7`. The `cargo-set-version` binary is
+  cached across runs.
+
+For workspaces where each member needs an independent version, set
+`release.skipversionbump: true` and manage versions manually until
+per-crate bumping lands (tracked as Phase 4 in `TODO.md`).
+
 ## Publishing to crates.io
 
 Currently out of scope (tracked in TODO.md). Use `release-orchestrator.yml`

@@ -193,7 +193,7 @@ run_get_file_pattern() {
 
   assert_success
   assert_output --partial "CHANGELOG.md"
-  assert_output --partial "Cargo.toml"
+  assert_output --partial ":(glob)**/Cargo.toml"
   assert_output --partial "Cargo.lock"
 }
 

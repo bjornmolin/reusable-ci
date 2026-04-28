@@ -143,6 +143,39 @@ main() {
     fi
     ;;
 
+  rust)
+    cd "$WORKING_DIR"
+    log "Updating Rust version to ${VERSION}"
+
+    if [[ ! -f Cargo.toml ]]; then
+      log_error "Cargo.toml not found in ${WORKING_DIR}"
+      exit 1
+    fi
+
+    if ! command -v cargo-set-version >/dev/null 2>&1; then
+      log "Installing cargo-edit ${CARGO_EDIT_VERSION:-0.13.7}"
+      cargo install --locked cargo-edit --version "${CARGO_EDIT_VERSION:-0.13.7}"
+    fi
+
+    # Workspace projects bump every member to the same version (uniform
+    # workspace versioning). Per-crate independent versioning is out of
+    # scope for v2.8.0 - users with that layout should set
+    # `release.skipversionbump: true` and manage versions manually.
+    #
+    # We invoke `cargo-set-version` directly rather than `cargo set-version`
+    # to avoid an extra subprocess and to keep the call deterministic in
+    # environments where `cargo` is not on PATH (e.g. unit tests).
+    if grep -q '^\[workspace\]' Cargo.toml; then
+      log "Detected Cargo workspace; bumping all members to ${VERSION}"
+      cargo-set-version --workspace "$VERSION"
+    else
+      log "Single-crate project; bumping to ${VERSION}"
+      cargo-set-version "$VERSION"
+    fi
+
+    log_success "Rust version updated"
+    ;;
+
   meta)
     log "Meta project type - no version file to update"
     log_success "Version ${VERSION} recorded for changelog generation only"

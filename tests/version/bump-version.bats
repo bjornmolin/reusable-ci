@@ -25,6 +25,8 @@ setup() {
 teardown() {
   unstub mvn 2>/dev/null || true
   unstub npm 2>/dev/null || true
+  unstub cargo 2>/dev/null || true
+  unstub cargo-set-version 2>/dev/null || true
   common_teardown
 }
 
@@ -352,4 +354,79 @@ EOF
 
   assert_success
   assert_output --partial "gradle"
+}
+
+# =============================================================================
+# Rust Tests
+# =============================================================================
+
+# Create a single-crate Cargo.toml
+create_cargo_single_crate() {
+  local version="${1:-0.1.0}"
+  cat > "$TEST_DIR/Cargo.toml" << EOF
+[package]
+name = "demo"
+version = "$version"
+edition = "2021"
+EOF
+}
+
+# Create a workspace Cargo.toml
+create_cargo_workspace() {
+  cat > "$TEST_DIR/Cargo.toml" << 'EOF'
+[workspace]
+members = ["crate-a", "crate-b"]
+resolver = "2"
+EOF
+}
+
+@test "bump-version updates single-crate Rust project" {
+  create_cargo_single_crate "0.1.0"
+
+  # cargo-set-version already present (skip install path)
+  stub cargo-set-version "0.2.0 : true"
+
+  run_bump_version "rust" "0.2.0" "$TEST_DIR"
+
+  assert_success
+  assert_output --partial "Single-crate project"
+  assert_output --partial "Rust version updated"
+  unstub cargo-set-version
+}
+
+@test "bump-version updates Rust workspace with --workspace" {
+  create_cargo_workspace
+
+  stub cargo-set-version "--workspace 0.2.0 : true"
+
+  run_bump_version "rust" "0.2.0" "$TEST_DIR"
+
+  assert_success
+  assert_output --partial "Detected Cargo workspace"
+  assert_output --partial "Rust version updated"
+  unstub cargo-set-version
+}
+
+@test "bump-version installs cargo-edit when missing" {
+  create_cargo_single_crate "0.1.0"
+
+  # Verify the install branch runs when cargo-set-version is absent.
+  # We stub `cargo` so `cargo install` succeeds without actually installing
+  # anything. The subsequent `cargo-set-version` call then fails with 127
+  # (still not on PATH after the no-op install), which is fine for this
+  # test - we only assert the install branch was entered.
+  stub cargo "install --locked cargo-edit --version 0.13.7 : true"
+
+  run_bump_version "rust" "0.2.0" "$TEST_DIR"
+
+  assert_failure
+  assert_output --partial "Installing cargo-edit"
+  unstub cargo
+}
+
+@test "bump-version fails when Cargo.toml is missing" {
+  run_bump_version "rust" "0.2.0" "$TEST_DIR"
+
+  assert_failure
+  assert_output --partial "Cargo.toml not found"
 }

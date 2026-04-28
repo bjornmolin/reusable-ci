@@ -171,6 +171,16 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
           git_config_global: true
+      - name: Configure git identity (unsigned)
+        if: ${{ !inputs['sign-artifacts'] }}
+        # When sign-artifacts is false the GPG step above is skipped and the
+        # runner has no committer identity. Set the github-actions[bot]
+        # identity globally so all subsequent git operations (auto-commit,
+        # tag move) inherit it - mirrors how ghaction-import-gpg sets
+        # identity globally for the signed path.
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
       - name: Set project type
         id: project-type
         env:
